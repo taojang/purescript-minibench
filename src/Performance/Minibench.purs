@@ -8,14 +8,20 @@ module Performance.Minibench
   ( bench
   , benchWith
   , benchWith'
+  , benchAffWith
+  , benchAffWith'
   , BenchResult
   , withUnits
   ) where
 
 import Prelude hiding (min,max)
 
+import Data.Array (range)
+import Data.Foldable (for_)
 import Data.Int (toNumber)
 import Effect (Effect, forE)
+import Effect.Aff (Aff)
+import Effect.Class (liftEffect)
 import Effect.Console (log)
 import Effect.Ref as Ref
 import Effect.Uncurried (EffectFn1, runEffectFn1)
@@ -93,6 +99,55 @@ benchWith' n f = do
   sum2 <- Ref.read sum2Ref
   min' <- Ref.read minRef
   max' <- Ref.read maxRef
+  let n'     = toNumber n
+      mean   = sum / n'
+      stdDev = sqrt ((sum2 - n' * mean * mean) / (n' - 1.0))
+  pure
+    { mean
+    , stdDev
+    , min: min'
+    , max: max'
+    }
+
+benchAffWith
+  :: forall a
+   . Int
+  -> Aff a
+  -> Aff Unit
+benchAffWith n f = do
+  res <- benchAffWith' n f
+  liftEffect $ do
+    log ("mean   = " <> withUnits res.mean)
+    log ("stddev = " <> withUnits res.stdDev)
+    log ("min    = " <> withUnits res.min)
+    log ("max    = " <> withUnits res.max)
+
+benchAffWith'
+  :: forall a
+   . Int
+  -> Aff a
+  -> Aff BenchResult
+benchAffWith' n f = do
+  sumRef <- liftEffect $ Ref.new 0.0
+  sum2Ref <- liftEffect $ Ref.new 0.0
+  minRef <- liftEffect $ Ref.new infinity
+  maxRef <- liftEffect $ Ref.new 0.0
+  liftEffect $ gc
+  for_ (range 0 n) \_ -> do
+    t1 <- liftEffect $ runEffectFn1 hrTime [0, 0]
+    _  <- f
+    t2 <- liftEffect $ runEffectFn1 hrTime t1
+    let ns     = fromHrTime t2
+        square = ns * ns
+    _ <- liftEffect $ Ref.modify (_ + ns) sumRef
+    _ <- liftEffect $ Ref.modify (_ + square) sum2Ref
+    _ <- liftEffect $ Ref.modify (_ `min` ns) minRef
+    _ <- liftEffect $ Ref.modify (_ `max` ns) maxRef
+    pure unit
+  sum <- liftEffect $ Ref.read sumRef
+  sum2 <- liftEffect $ Ref.read sum2Ref
+  min' <- liftEffect $ Ref.read minRef
+  max' <- liftEffect $ Ref.read maxRef
   let n'     = toNumber n
       mean   = sum / n'
       stdDev = sqrt ((sum2 - n' * mean * mean) / (n' - 1.0))

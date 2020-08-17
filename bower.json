@@ -23,6 +23,7 @@
     "purescript-math": "^2.1.1",
     "purescript-partial": "^2.0.0",
     "purescript-prelude": "^4.0.0",
-    "purescript-refs": "^4.0.0"
+    "purescript-refs": "^4.0.0",
+    "purescript-aff": "^5.1.2"
   }
 }
