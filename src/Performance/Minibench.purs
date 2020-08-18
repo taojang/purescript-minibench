@@ -16,12 +16,11 @@ module Performance.Minibench
 
 import Prelude hiding (min,max)
 
-import Data.Array (range)
-import Data.Foldable (for_)
+import Control.Monad.Loops (whileM_)
 import Data.Int (toNumber)
 import Effect (Effect, forE)
 import Effect.Aff (Aff)
-import Effect.Class (liftEffect)
+import Effect.Class (class MonadEffect, liftEffect)
 import Effect.Console (log)
 import Effect.Ref as Ref
 import Effect.Uncurried (EffectFn1, runEffectFn1)
@@ -133,7 +132,7 @@ benchAffWith' n f = do
   minRef <- liftEffect $ Ref.new infinity
   maxRef <- liftEffect $ Ref.new 0.0
   liftEffect $ gc
-  for_ (range 0 n) \_ -> do
+  forN n do
     t1 <- liftEffect $ runEffectFn1 hrTime [0, 0]
     _  <- f
     t2 <- liftEffect $ runEffectFn1 hrTime t1
@@ -174,3 +173,12 @@ benchAffWith' n f = do
 -- | ```
 bench :: forall a. (Unit -> a) -> Effect Unit
 bench = benchWith 1000
+
+forN :: forall m a. MonadEffect m => Int -> m a -> m Unit
+forN n ma = do
+  ref <- liftEffect $ Ref.new 0
+  let check = do
+        current <- liftEffect $ Ref.read ref
+        _ <- liftEffect $ Ref.modify_ (_ + 1) ref
+        pure $ current < n
+  whileM_ check ma

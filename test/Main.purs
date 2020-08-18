@@ -41,6 +41,8 @@ loopAff n = do
 testAff :: Aff Unit
 testAff = do
   liftEffect $ log "loop 10"
+  benchAffWith 1 (loopAff 1000)
+  liftEffect $ log "loop 10"
   benchAffWith 1000000 (loopAff 10)
   liftEffect $ log "loop 100"
   benchAffWith 100000 (loopAff 100)
